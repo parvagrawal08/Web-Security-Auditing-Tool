@@ -1,358 +1,268 @@
-# Web Application Security Auditing Tool — Phase 2
+# Web Application Security Auditing Tool
 
-A beginner-friendly, non-destructive web application security configuration
-auditing tool, built as an individual B.Tech (Ethical Hacking & Penetration
-Testing) cybersecurity project.
+An automated, non-destructive web security configuration auditing tool that evaluates common security settings of authorized web applications and presents clear findings, risk levels, evidence, remediation guidance, and downloadable reports.
 
-**Status: Phase 2 complete** (Phase 1 is tagged `phase1-final`). Phase 1: all 18 planned steps implemented and tested,
-including real-world verification against both well-configured production
-sites (GitHub, PyPI) and an intentionally vulnerable local target (DVWA).
 
 ---
 
----
+## Overview
 
-## Phase 2 — what changed
+Web applications can expose users and organizations to risk through missing security headers, weak cookie attributes, overly permissive cross-origin policies, unnecessary HTTP methods, server information disclosure, and TLS configuration problems.
 
-Phase 2 improves the product *around* the Phase 1 engine. The scanners, `Finding`
-model, severity weights and scoring are **unchanged** (`git diff phase1-final` shows
-no edits to `scanner/`, `analysis/findings.py`, `scoring.py`, `severity.py`,
-`validators.py` or `http_client.py`). Still session-based: no database, no history.
+The **Web Application Security Auditing Tool** automates a set of safe configuration checks and turns the results into an understandable security report. It is designed to make common web-security settings easier to inspect, understand, and improve.
 
-- **Live scan progress** driven by real events from `run_full_scan(on_progress=...)`.
-- **Honest failure reporting**: each category ends as completed / partial / failed,
-  derived from the scanners' own `Error` findings. Incomplete checks are never shown
-  as passed, and the dashboard says "scan completed with warnings".
-- **Unreachable targets** get a connectivity error instead of a score (some Phase 1 checks
-  would otherwise turn a failed connection into a plausible-looking result).
-- **Dashboard**: score + risk label, severity tiles, category cards, filterable/searchable
-  findings (severity, category, text search, hide passed).
-- **Reports**: restructured HTML, additive JSON (all Phase 1 keys kept), new PDF (ReportLab).
-  Exports reuse the current result; nothing is re-scanned. All scan data is escaped.
-- **Settings** (sidebar): request timeout, delay between modules, include evidence /
-  recommendations, require authorization (default on).
-- **Logging**: scan/scanner start-end and failures; secrets (cookies, Authorization,
-  tokens, passwords, API keys) are masked in every log line.
+## Key Features
 
-**Risk labels** reuse the Phase 1 score bands: Excellent = Low Risk, Good = Low-Medium,
-Moderate = Moderate, Poor = High, Critical = Critical Risk.
+- **HTTP/HTTPS checks** — checks HTTPS availability, HTTP-to-HTTPS redirection, and HSTS configuration.
+- **Security header analysis** — reviews Content-Security-Policy (CSP), X-Frame-Options, X-Content-Type-Options, Referrer-Policy, and Permissions-Policy.
+- **Cookie security analysis** — inspects Secure, HttpOnly, and SameSite attributes for cookies visible in the tested response.
+- **CORS analysis** — evaluates cross-origin configuration, including origin and credential combinations.
+- **HTTP method checks** — uses safe OPTIONS-based checks to identify advertised methods and flags potentially risky methods.
+- **Information disclosure checks** — looks for server and technology details exposed through response headers.
+- **TLS/SSL checks** — reviews certificate validity, expiry, hostname matching, issuer information, and negotiated protocol details.
+- **Directory exposure checks** — checks a small, predefined set of common paths for directory-listing exposure.
+- **Risk-based findings** — classifies results by severity and provides evidence, impact, and remediation guidance.
+- **Security score** — calculates an explainable score from 0 to 100 based on detected findings.
+- **Interactive dashboard** — presents the score, risk level, severity summary, category results, and searchable/filterable findings.
+- **Report exports** — generates HTML, JSON, and PDF reports.
+- **Scan progress and error handling** — displays scan progress and reports incomplete or failed checks without treating them as successful checks.
+- **Safe request handling** — uses URL validation, request timeouts, and delays between scanner modules.
 
-**Known notes**: the timeout setting applies to HTTP requests (the TLS check keeps its own
-fixed 8s timeout). Phase 1 treats "plain HTTP did not respond" as a Pass and "HTTPS
-connection failed" as a High finding by design; the unreachable-target guard exists
-because of this. `Finding` has no affected-URL field, so none is shown.
+## Security Checks
 
-### Tests
+| Category | What is checked |
+|---|---|
+| HTTP/HTTPS | HTTPS availability, HTTP-to-HTTPS redirect, HSTS |
+| Security Headers | CSP, X-Frame-Options, X-Content-Type-Options, Referrer-Policy, Permissions-Policy |
+| Cookies | Secure, HttpOnly, SameSite |
+| CORS | Allowed origins, credentials, methods, and headers |
+| HTTP Methods | Methods advertised through safe OPTIONS requests |
+| Information Disclosure | Server and technology information in response headers |
+| TLS/SSL | Certificate validity, expiry, hostname, issuer, and protocol |
+| Directory Exposure | Directory-listing exposure on a limited set of predefined paths |
 
-```bash
-python -m pytest tests -q     # offline; scans a local lab server on 127.0.0.1
+## How It Works
+
+The application follows a modular scanning workflow:
+
+```text
+Target URL
+    |
+    v
+Target Validation
+    |
+    v
+Scan Controller
+    |
+    +--> HTTP/HTTPS Scanner
+    +--> Security Headers Scanner
+    +--> Cookie Scanner
+    +--> CORS Scanner
+    +--> HTTP Methods Scanner
+    +--> Information Disclosure Scanner
+    +--> TLS/SSL Scanner
+    +--> Directory Exposure Scanner
+    |
+    v
+Finding Engine
+    |
+    v
+Severity Classification and Scoring
+    |
+    v
+Dashboard and Report Generation
 ```
 
-The older `tests/manual_step*_check.py` scripts are Phase 1 manual checks (some use live sites).
-
----
-
-## ⚠️ Authorization Notice
-
-**This tool is intended only for web applications that you own or have
-explicit, documented authorization to test.**
-
-Running this tool — or any security scanner — against systems you do not
-own or have not been given clear permission to test may violate laws such
-as the IT Act, 2000 (India), the Computer Fraud and Abuse Act (USA), or
-equivalent legislation elsewhere. Always test against systems you control
-(local apps, DVWA, OWASP Juice Shop, WebGoat) or targets with written
-authorization.
-
-This tool performs **safe, non-destructive configuration checks only**. It
-does not perform exploitation, brute-forcing, credential attacks, or
-denial-of-service testing. This disclaimer is also shown, and must be
-actively confirmed via checkbox, in the application UI itself before any
-scan can run.
-
----
-
-## Problem Statement
-
-Many student and hobbyist web projects — and even production sites — leave
-basic HTTP security configuration unaddressed: missing security headers,
-weak cookie flags, unnecessary CORS permissiveness, disclosed server
-versions, and expired or misconfigured TLS certificates. These issues are
-individually well-documented (OWASP, Mozilla Observatory, SSL Labs) but
-existing tools are either commercial, complex, or designed for security
-professionals rather than students learning the underlying concepts. This
-project builds a from-scratch, understandable, extensible auditing tool
-that makes these checks — and the reasoning behind each one — transparent.
-
-## Objectives
-
-- Implement 8 independent, non-destructive security configuration scanners.
-- Produce clear, evidence-backed findings with severity, impact, and
-  remediation guidance — never overstating what was actually detected.
-- Compute an understandable, explainable 0–100 security score.
-- Present results through an interactive dashboard and exportable reports.
-- Build the tool modularly enough to extend in future phases (OWASP Top 10,
-  authenticated scanning, API security testing, etc.).
-
-## Scope (Phase 1)
-
-**In scope:** HTTP/HTTPS availability and redirection, HSTS, 5 security
-headers (CSP, X-Frame-Options, X-Content-Type-Options, Referrer-Policy,
-Permissions-Policy), per-cookie Secure/HttpOnly/SameSite analysis, CORS
-configuration (context-sensitive, not blanket wildcard-flagging), HTTP
-method enumeration via safe OPTIONS requests, server/version information
-disclosure, TLS/SSL certificate validity/expiry/issuer/protocol via
-Python's `ssl`/`socket`, and a small, fixed set of directory-listing checks.
-
-**Explicitly out of scope for Phase 1:** exploitation of any kind, active
-directory brute-forcing, credential/brute-force attacks, authenticated
-scanning, OWASP Top 10 vulnerability testing, API/OpenAPI-specific
-analysis, and any denial-of-service-adjacent request volume.
-
-## Features
-
-- 8 independent scanner modules, each returning structured findings
-- Consistent severity model (Critical/High/Medium/Low/Informational/Pass)
-  with a documented policy for what each level means
-- Explainable 0–100 scoring engine with diminishing-returns dampening for
-  repeated findings of the same check type
-- Interactive Streamlit dashboard: score display, severity/category
-  summaries, filterable findings list
-- HTML and JSON report export, with HTML-escaping applied to all
-  scanner-derived data (defense against a malicious target injecting
-  markup into the generated report)
-- Graceful, isolated error handling at both the individual-check and
-  whole-module level — one broken check or module never crashes the scan
-- Developer-facing logging (`logs/scan_tool.log`) capturing full
-  tracebacks for any unexpected module failure, without exposing raw
-  exception detail to the end user
+Each scanner is implemented as a separate module. The scan controller coordinates the modules, collects their findings, handles module-level errors, and produces a consolidated result for the dashboard and report generators.
 
 ## Technology Stack
 
-- Python 3.10+
-- Streamlit (dashboard)
-- Requests (HTTP communication)
-- Python `ssl` / `socket` (TLS checks — no custom TLS implementation)
-- BeautifulSoup4 (available for HTML parsing; used where relevant)
-- JSON (scan result storage/export)
-- Python `logging` (developer diagnostics)
-
-## Architecture
-
-```
-Target Input → Target Validation → Scan Controller → Individual Security
-Modules → Finding Engine → Severity/Scoring Engine → Dashboard → Report Generator
-```
-
-Each layer only depends on the one below it; the dashboard (`app.py`)
-never imports a scanner directly — it calls `scan_controller.run_full_scan()`
-and renders the result, keeping UI code fully separate from scanning logic.
+- **Python 3.10+**
+- **Streamlit** — interactive web interface
+- **Requests** — HTTP communication
+- **Beautiful Soup 4** — HTML parsing where required
+- **Python `ssl` and `socket`** — TLS/SSL inspection
+- **ReportLab** — PDF report generation
+- **Pytest** — automated testing
 
 ## Project Structure
 
-```
+```text
 web-security-auditing-tool/
-├── app.py                    # Streamlit dashboard (UI only)
-├── scan_controller.py        # Orchestrates all 8 scanners + scoring
-├── requirements.txt
-├── README.md
-│
-├── scanner/                  # One independent module per check category
-│   ├── http_scanner.py       # HTTPS availability, redirect, HSTS
-│   ├── header_scanner.py     # CSP, X-Frame-Options, X-Content-Type-Options,
-│   │                         # Referrer-Policy, Permissions-Policy
-│   ├── cookie_scanner.py     # Per-cookie Secure/HttpOnly/SameSite
-│   ├── cors_scanner.py       # CORS origin/credentials/methods/headers
-│   ├── method_scanner.py     # HTTP method enumeration (OPTIONS, safe only)
-│   ├── disclosure_scanner.py # Server/X-Powered-By/version disclosure
-│   ├── tls_scanner.py        # Certificate validity, expiry, issuer, protocol
-│   └── directory_scanner.py  # Small, fixed directory-listing checks
 │
 ├── analysis/
-│   ├── findings.py           # Common Finding structure + grouping utilities
-│   ├── severity.py           # Severity weights and policy definitions
-│   └── scoring.py            # 0-100 scoring engine with dampening
+│   ├── findings.py          # Finding model and finding utilities
+│   ├── risk.py              # Risk classification
+│   ├── scoring.py           # Security score calculation
+│   ├── severity.py          # Severity definitions and weights
+│   └── summary.py           # Result summaries
 │
 ├── reports/
-│   ├── html_report.py        # Self-contained HTML report (escaped output)
-│   ├── json_report.py        # JSON export (Phase 2: additive keys)
-│   └── pdf_report.py         # PDF export (Phase 2, ReportLab)
+│   ├── html_report.py       # HTML report generation
+│   ├── json_report.py       # JSON report generation
+│   └── pdf_report.py        # PDF report generation
+│
+├── scanner/
+│   ├── http_scanner.py      # HTTP/HTTPS and redirect checks
+│   ├── header_scanner.py    # Security header checks
+│   ├── cookie_scanner.py    # Cookie attribute checks
+│   ├── cors_scanner.py      # CORS configuration checks
+│   ├── method_scanner.py    # HTTP method checks
+│   ├── disclosure_scanner.py# Information disclosure checks
+│   ├── tls_scanner.py       # TLS/SSL checks
+│   └── directory_scanner.py # Directory exposure checks
+│
+├── ui/
+│   ├── components.py        # Dashboard components
+│   └── styles.py            # UI styling
 │
 ├── utils/
-│   ├── validators.py         # URL validation/normalization
-│   ├── http_client.py        # Shared safe HTTP client (GET/HEAD/OPTIONS only)
-│   └── logger.py             # Developer-facing diagnostic logging
+│   ├── errors.py            # Error handling utilities
+│   ├── http_client.py       # Shared HTTP client
+│   ├── logger.py            # Application logging
+│   ├── redact.py            # Sensitive-value redaction
+│   └── validators.py        # Target URL validation
 │
-├── ui/                       # Phase 2: dashboard styles + rendering helpers
-├── config.py                 # Phase 2: session settings
-└── tests/                    # test_phase2.py (pytest) + Phase 1 manual scripts
+├── tests/                   # Automated and manual checks
+├── app.py                   # Streamlit application entry point
+├── config.py                # Application settings
+├── scan_controller.py       # Scan orchestration
+├── requirements.txt         # Python dependencies
+└── README.md
 ```
 
-## Methodology
+## Getting Started
 
-Development followed an 18-step incremental process: environment setup,
-then one scanner module at a time (each independently tested against real
-targets before moving on), then the shared finding format, severity
-engine, and scoring engine, then integration through a scan controller,
-then the dashboard, then reports, then real-world testing against an
-authorized vulnerable target (DVWA), then final polish. Each scanner was
-verified against both a well-configured real site and either a real
-misconfigured target or a controlled synthetic (mocked) test case, since
-production-grade sites rarely exhibit the specific weaknesses being
-checked for.
-
-## Security Checks — Summary
-
-| Category | Checks |
-|---|---|
-| HTTP/HTTPS | HTTPS availability, HTTP→HTTPS redirect, HSTS presence/strength |
-| Headers | CSP, X-Frame-Options, X-Content-Type-Options, Referrer-Policy, Permissions-Policy |
-| Cookies | Secure, HttpOnly, SameSite — analyzed per individual cookie |
-| CORS | Origin policy (context-sensitive: wildcard alone ≠ vulnerability), credentials, methods, headers |
-| HTTP Methods | Safe OPTIONS-based enumeration; TRACE flagged for XST risk |
-| Server Disclosure | Server, X-Powered-By, X-AspNet-Version, X-Generator, Via |
-| TLS/SSL | Certificate validity window, expiry warning, hostname match, issuer, protocol version |
-| Directory Exposure | Small fixed set of common paths checked for autoindex listings |
-
-## Scoring Methodology
-
-- Score starts at 100.
-- Only findings with `status == "Finding"` deduct points; `Pass` deducts 0,
-  and `Error` (inconclusive checks) deducts 0 — an unconfirmed check is
-  never treated as a confirmed weakness.
-- Deductions are weighted by severity: Critical=25, High=15, Medium=8,
-  Low=3, Informational=1.
-- **Duplicate findings are dampened**: repeated occurrences of the same
-  underlying check (e.g. `COOKIE-HTTPONLY` firing once per cookie on a
-  multi-cookie site) use a geometric series — each additional occurrence
-  counts for half as much as the previous one — capping the total
-  deduction for any single check type at 2× its base weight, regardless
-  of how many times it repeats.
-- Final score is categorized: 90–100 Excellent, 75–89 Good, 60–74
-  Moderate, 40–59 Poor, 0–39 Critical.
-- **Known limitation, kept deliberately**: a single Critical finding
-  (25-point deduction) still scores 75/100 ("Good"), since that's exactly
-  the boundary. This was a considered trade-off in favor of keeping the
-  model simple and explainable rather than adding a special-case override
-  rule, made explicitly rather than by accident.
-
-## Testing Methodology & Results
-
-Each scanner was tested at three levels as it was built:
-1. **Real well-configured sites** (github.com, pypi.org, api.github.com) —
-   confirmed low false-positive rate; the tool correctly recognized secure
-   configurations (e.g. `frame-ancestors` in CSP making a separate
-   `X-Frame-Options` header redundant, or a wildcard CORS origin without
-   credentials being flagged Informational rather than a false "vulnerability").
-2. **Synthetic/mocked data** for weaknesses too rare to find live in the
-   wild (e.g. TRACE method enabled, CORS wildcard combined with
-   credentials, an exposed directory listing) — confirmed detection logic
-   fires correctly when the condition genuinely occurs.
-3. **A real, intentionally vulnerable target** (DVWA, Security Level: Low,
-   locally hosted) — the definitive end-to-end test. Result: **36/100
-   (Critical)**, correctly identifying real absent HTTPS, a missing
-   HTTP→HTTPS redirect, all five missing security headers, and Apache
-   version disclosure — versus 85–91/100 ("Good") on well-configured
-   production sites. This confirmed the tool distinguishes genuinely weak
-   targets from secure ones, not just in theory but in a real scan.
-
-A real bug was caught and fixed during this process: the TLS scanner's
-original diagnostic fallback (a second, unverified connection meant to
-enrich failure details) silently returned no data due to a subtle Python
-`ssl` behavior — `getpeercert()` returns an empty dict when verification
-is disabled — which downgraded genuine certificate failures (expired,
-self-signed, hostname mismatch) to a low-detail Informational finding
-instead of the correct High-severity one. This was caught specifically
-*because* testing included both secure and deliberately broken TLS
-targets (badssl.com), not just healthy ones — reinforcing why the spec
-requires testing both configurations for every check.
-
-## Limitations
-
-- **Phase 1 scope only**: no authenticated scanning, no OWASP Top 10
-  testing, no API/OpenAPI analysis, no exhaustive directory brute-forcing.
-  A clean scan reflects only the specific checks performed, not the
-  absence of all vulnerabilities.
-- **No confirmed exploitation**: findings describe configuration
-  weaknesses and information disclosure, never confirmed exploits, unless
-  the check itself directly validates exploitability (none currently do).
-- **No connection pooling/session reuse**: each scanner opens fresh
-  connections rather than reusing a persistent session, which measurably
-  slows scans (observed 3–35s depending on network conditions) — a
-  documented target for future optimization, not implemented in Phase 1
-  to avoid adding complexity beyond what was needed.
-- **TLS interception environments produce misleading results**: if run
-  behind a corporate/institutional proxy that performs TLS interception
-  (MITM with a locally trusted root CA), the TLS scanner will report
-  every certificate as valid, including ones that shouldn't be — this was
-  directly observed during development in a sandboxed CI environment and
-  is a fundamental limitation of any client-side TLS verification, not
-  fixable within this tool.
-- **Cookie detection depends on the specific page/flow tested**: some
-  applications (observed with DVWA's landing page) do not set a session
-  cookie until a later step (e.g. login submission) — a scan of the
-  landing page alone may report no cookies even if the application uses
-  them elsewhere. Noted for follow-up investigation.
-- **Directory exposure checks a small, fixed path list only** — by
-  design, not a brute-force scan; genuine hidden/sensitive paths outside
-  this list will not be found.
-- **Severity/scoring model is a considered simplification**: real-world
-  risk depends on business context this tool cannot know (e.g. whether an
-  endpoint handles sensitive data) — scores should inform, not replace,
-  human judgment.
-
-## Future Scope
-
-- OWASP Top 10 vulnerability testing
-- API security testing / OpenAPI/Swagger analysis
-- Authenticated scanning
-- More advanced TLS analysis (cipher suite enumeration, OCSP stapling)
-- Technology fingerprinting
-- Controlled vulnerability validation
-- Scan history (SQLite)
-- Connection pooling for faster scans
-- Optional AI-assisted explanation/report summarization (kept strictly
-  optional and non-authoritative — deterministic checks remain the source
-  of truth)
-
-## Setup
+### 1. Clone the repository
 
 ```bash
-python -m venv venv
-source venv/bin/activate   # Windows: venv\Scripts\Activate.ps1
+git clone https://github.com/<your-username>/<your-repository>.git
+cd web-security-auditing-tool
+```
+
+Replace the repository URL with your GitHub repository URL.
+
+### 2. Create a virtual environment
+
+**Windows (PowerShell):**
+
+```powershell
+python -m venv .venv
+.venv\Scripts\Activate.ps1
+```
+
+**Linux / macOS:**
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+```
+
+### 3. Install dependencies
+
+```bash
+python -m pip install --upgrade pip
 pip install -r requirements.txt
 ```
 
-## Running
+### 4. Run the application
 
 ```bash
 streamlit run app.py
 ```
 
+Streamlit will display a local URL, usually:
+
+```text
+http://localhost:8501
+```
+
+Open that address in your browser.
+
+## Running Tests
+
+Run the automated test suite from the project root:
+
+```bash
+python -m pytest tests -q
+```
+
+Some `manual_step*_check.py` scripts are intended for manual verification and may contact external targets. Only run them against systems you are permitted to test.
+
+## Understanding the Security Score
+
+The tool produces a score from **0 to 100**. Findings are weighted by severity, while checks that pass do not reduce the score. Checks that return an error or cannot be completed should not be interpreted as confirmed vulnerabilities.
+
+The score is a simplified indicator based only on the checks performed by this application. It is not a universal security rating and should not be used to compare organizations or products as if it represented their complete security posture.
+
+A website may use extensive security controls that are not visible to this scanner, including application-level protections, internal monitoring, network controls, identity systems, and infrastructure safeguards.
+
+## Scope and Limitations
+
+The tool focuses on observable web-security configuration. It does **not** currently provide a complete penetration test.
+
+The following are outside its current scope:
+
+- Exploitation or proof-of-concept attacks
+- Brute-force or credential attacks
+- Authentication or authenticated-session testing
+- Full OWASP Top 10 vulnerability testing
+- Business-logic testing
+- Comprehensive API security testing
+- Exhaustive directory or content discovery
+- Denial-of-service testing
+- Internal infrastructure or network security assessment
+
+Results depend on the URL and response available to the scanner. Cookie checks, for example, only cover cookies visible during the tested request flow. Directory checks use a limited predefined path list. A passing result does not prove that the entire application is secure.
+
 ## Deployment
 
-### Streamlit Community Cloud (recommended — free)
+The current application uses **Streamlit**, which requires a Streamlit-compatible hosting environment.
 
-1. Push this repo to GitHub.
-2. Go to [share.streamlit.io](https://share.streamlit.io) and sign in with
-   your GitHub account.
-3. Click **New app** → select your repo, branch `main`, and main file `app.py`.
-4. Click **Deploy**. Your app will be live in about a minute.
+For the current codebase, deploy using a platform that supports running a persistent Streamlit application, such as Streamlit Community Cloud, Render, or Railway.
 
-> **Why not Vercel?**  Streamlit requires a persistent WebSocket server.
-> Vercel only supports serverless functions with short execution timeouts
-> (10–60 s), so it **cannot host Streamlit apps**. Streamlit Community
-> Cloud is purpose-built for this and completely free.
+**Vercel note:** This repository is currently a Streamlit application. It is not a ready-to-deploy Vercel serverless project. Hosting it on Vercel would require an architectural migration, such as a separate frontend (for example, React) and Python API (for example, FastAPI), with the scanning engine adapted to the serverless execution model and its time limits.
 
-### Other hosting options
+## Responsible Use and Authorization
 
-| Platform | How |
-|----------|-----|
-| **Render** | Add a `render.yaml` or use the dashboard; set start command to `streamlit run app.py --server.port $PORT --server.address 0.0.0.0`. |
-| **Railway** | Same start command; Railway auto-detects Python. |
-| **Docker** | Use the included `Dockerfile` (see below). |
+- Only scan systems you own or have explicit, documented permission to test.
+- Confirm the scope and permitted testing window before scanning.
+- Do not use the tool to bypass access controls or disrupt services.
+- Treat findings as indicators requiring validation, not as proof of exploitability.
+- Obtain authorization before testing production systems.
 
-## Ethical Use
+The maintainers are not responsible for misuse of this software.
 
-This project is for educational purposes and authorized security
-assessments only. Do not use it against systems without permission.
+## Future Improvements
+
+Potential extensions include:
+
+- OWASP Top 10 security testing
+- API and OpenAPI/Swagger security analysis
+- Authenticated security assessments
+- Expanded TLS configuration analysis
+- Technology fingerprinting
+- Controlled vulnerability validation
+- Optional assisted explanations for findings
+- A React frontend and API-based deployment architecture
+
+## Contributing
+
+Contributions, bug reports, and suggestions are welcome.
+
+1. Fork the repository.
+2. Create a feature branch.
+3. Make focused changes and add or update tests.
+4. Run the test suite.
+5. Open a pull request describing the change.
+
+Please avoid submitting changes that introduce intrusive scanning or weaken the tool's safety controls.
+
+## License
+
+Add a license file before distributing or reusing this project. Until a license is included, all rights remain with the copyright holder.
+
+---
+
+**Web Application Security Auditing Tool**  
+*Making web security configuration easier to inspect, understand, and improve.*
