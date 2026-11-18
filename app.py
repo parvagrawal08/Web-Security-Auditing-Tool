@@ -281,7 +281,7 @@ def main() -> None:
         _emit_print_script()
         return
     if result.target_unreachable:
-        render_unreachable(result)``
+        render_unreachable(result)
         render_top_menu()
         _emit_print_script()
         return
